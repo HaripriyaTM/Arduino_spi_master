@@ -16,8 +16,14 @@
 #define ABORT_TRANSACTION 0x02
 #define WRITE_CAN 0xAB
 #define  NO_CAN_WRITE 0xAC
+#define SLAVE_READY 0xDE
+#define SLAVE_READY_ACK 0xAD
+#define RX_DATA_RDY 0x01
 
-void send_read_command(void);uint8_t flag = 0;
+void send_read_command(void);
+void receive_and_send_can();
+
+uint8_t flag = 0;
 uint8_t test_snd_buff = {0x03};
 uint8_t test_rcv_buff;
 int j = 0;
@@ -39,6 +45,7 @@ void setup() {
   digitalWrite(SS_PIN, HIGH);
   Serial.begin(115200);
 }
+
 void loop()
 {
   count++;
@@ -48,21 +55,27 @@ void loop()
     can_present = 1;
   }
   digitalWrite(SS_PIN, LOW);
-  check_and_receive_can();  
+  receive_and_send_can();
+//  check_and_receive_can();  
   digitalWrite(SS_PIN, HIGH);
 //  delayMicroseconds(500);
   delay(1);
 }
 
-void check_and_receive_can()
+void receive_and_send_can()
 {
-  
-  test_snd_buff = CAN_MSG_STATUS;
-  test_rcv_buff = SPI.transfer(test_snd_buff);        //It will send 0x03(Query)and it will receive 0x33(resp)
-//  Serial.println(test_rcv_buff, HEX); 
-  if(test_rcv_buff == MSG_PRESENT)
+  test_snd_buff = SLAVE_READY;
+  test_rcv_buff = SPI.transfer(test_snd_buff);
+  if(test_rcv_buff == SLAVE_READY_ACK)
   {
-    can_msg_count++;
+    test_snd_buff = RX_DATA_RDY;
+    test_rcv_buff = SPI.transfer(test_snd_buff);
+    if(test_rcv_buff == MSG_PRESENT)
+    {
+      test_snd_buff = READ_MSG;
+      test_rcv_buff = SPI.transfer(test_snd_buff);
+      send_read_command();
+    }
     if(can_present == 1)
     {
       test_snd_buff = WRITE_CAN;
@@ -78,29 +91,6 @@ void check_and_receive_can()
       test_snd_buff = NO_CAN_WRITE;
       test_rcv_buff = SPI.transfer(test_snd_buff);
     }
-    test_snd_buff = READ_MSG;
-    test_rcv_buff = SPI.transfer(test_snd_buff);
-    send_read_command();
-  }
-  else
-  {
-    test_snd_buff = ABORT_TRANSACTION;
-    if(can_present == 1)
-    {
-      test_snd_buff = WRITE_CAN;
-      test_rcv_buff = SPI.transfer(test_snd_buff);
-      for(uint8_t x = 0;x < 12;x++)
-      {
-        test_rcv_buff = SPI.transfer(x);
-      }
-      can_present = 0;
-    }
-    else
-    {
-      test_snd_buff = NO_CAN_WRITE;
-      test_rcv_buff = SPI.transfer(test_snd_buff);
-    }
-//    test_rcv_buff = SPI.transfer(test_snd_buff);
   }
 }
 
